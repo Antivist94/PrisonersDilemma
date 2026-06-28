@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prisoners — Дилемма заключённого</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #2c2c2c;
+      color: #e8e8e8;
+      font-family: 'Press Start 2P', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      image-rendering: pixelated;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      max-width: 700px;
+    }
+    canvas {
+      width: 100%;
+      max-width: 800px;
+      height: auto;
+      aspect-ratio: 800 / 540;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 3px solid #555;
+      border-radius: 4px;
+      background: #000;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    .lang-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 22px;
+      padding: 6px 14px;
+      cursor: pointer;
+      border: 3px solid #555;
+      border-radius: 4px;
+      background: #3a3a3a;
+      color: #aaa;
+      line-height: 1;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .lang-btn:hover { border-color: #888; }
+    .lang-btn.active {
+      border-color: #4caf50;
+      color: #fff;
+      background: #4a4a4a;
+    }
+    .btn-start {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 16px;
+      padding: 10px 24px;
+      cursor: pointer;
+      border: 3px solid #4caf50;
+      border-radius: 4px;
+      background: #388e3c;
+      color: #fff;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-start:hover { background: #43a047; border-color: #66bb6a; }
+    .btn-start:disabled {
+      background: #555;
+      border-color: #777;
+      color: #999;
+      cursor: not-allowed;
+    }
+    .description {
+      font-size: 10px;
+      line-height: 1.7;
+      text-align: center;
+      color: #bbb;
+      max-width: 600px;
+      padding: 8px;
+    }
+    .checkbox-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      color: #bbb;
+      user-select: none;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      accent-color: #4caf50;
+    }
+    @media (max-width: 540px) {
+      .lang-btn { font-size: 18px; padding: 4px 10px; }
+      .btn-start { font-size: 12px; padding: 8px 16px; }
+      .description { font-size: 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <canvas id="gameCanvas" width="800" height="540"></canvas>
+  <div class="controls">
+    <button class="lang-btn" id="langRu" title="Русский">🇷🇺</button>
+    <button class="lang-btn" id="langEn" title="English">🇺🇸</button>
+    <label class="checkbox-label" id="showTextLabel">
+      <input type="checkbox" id="showTextCheck">
+      <span id="showTextSpan">Show text</span>
+    </label>
+    <button class="btn-start" id="btnStart">▶ START</button>
+  </div>
+  <div class="description" id="descriptionText">
+    The Prisoner's Dilemma simulation — 8-bit style.
+    <br>100 prisoners, 100 boxes. Two strategies.
+  </div>
+</div>
+<script>
+  // ==============================
+  // i18n
+  // ==============================
+  const i18n = {
+    ru: {
+      description: 'Симуляция «Дилемма заключённого» — 8-бит\n100 заключённых, 100 коробок. Две стратегии.',
+      subtitle: '8-бит симуляция',
+      btnStart: '▶ СТАРТ',
+      titleFail: 'ПРОВАЛ',
+      titleSuccess: 'УСПЕХ',
+      statsTitle: 'РЕЗУЛЬТАТЫ',
+      found: 'нашли',
+      notFound: 'не нашли',
+      percent: 'Успех',
+      roomPrisoners: 'ЗАКЛЮЧЁННЫЕ',
+      roomBoxes: 'КОРОБКИ',
+      roomYard: 'ДВОР',
+      strategyTitle: 'ВЫБЕРИТЕ СТРАТЕГИЮ',
+      strategy1Name: '1 — СЛУЧАЙНАЯ',
+      strategy1Desc: 'Каждый заключённый наугад открывает\nкоробки, не запоминая результаты.',
+      strategy2Name: '2 — ЦИКЛЫ',
+      strategy2Desc: 'Каждый начинает со своей коробки,\nзатем переходит по номерам внутри.',
+      pickStrategy: 'Нажмите 1 / 2 или кликните левую/правую половину экрана',
+      clickStartAgain: 'Нажмите СТАРТ для нового прогона',
+      showText: 'Показывать текст',
+      animStart: 'Симуляция началась...',
+      prisonerLog: 'Заключённый #{n} → Коробка #{b}',
+      openLog: 'Коробка #{b} → внутри #{n}',
+      foundLog: 'Заключённый #{n} НАШЁЛ свой номер!',
+      failLog: 'Заключённый #{n} НЕ НАШЁЛ (50 попыток)',
+    },
+    en: {
+      description: 'The Prisoner\'s Dilemma — 8-bit simulation\n100 prisoners, 100 boxes. Two strategies.',
+      subtitle: '8-bit simulation',
+      btnStart: '▶ START',
+      titleFail: 'FAIL',
+      titleSuccess: 'SUCCESS',
+      statsTitle: 'RESULTS',
+      found: 'found',
+      notFound: 'not found',
+      percent: 'Success rate',
+      roomPrisoners: 'PRISONERS',
+      roomBoxes: 'BOXES',
+      roomYard: 'YARD',
+      strategyTitle: 'CHOOSE STRATEGY',
+      strategy1Name: '1 — RANDOM',
+      strategy1Desc: 'Each prisoner opens random\nboxes, remembering nothing.',
+      strategy2Name: '2 — CYCLE',
+      strategy2Desc: 'Each starts with own box,\nthen follows the numbers inside.',
+      pickStrategy: 'Press 1 / 2 or click left/right half of canvas',
+      clickStartAgain: 'Press START for another run',
+      showText: 'Show text',
+      animStart: 'Simulation started...',
+      prisonerLog: 'Prisoner #{n} → Box #{b}',
+      openLog: 'Box #{b} → found #{n}',
+      foundLog: 'Prisoner #{n} FOUND their number!',
+      failLog: 'Prisoner #{n} FAILED (50 attempts)',
+    }
+  };
+
+  let currentLang = 'en';
+
+  // ==============================
+  // DOM refs
+  // ==============================
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const langRu = document.getElementById('langRu');
+  const langEn = document.getElementById('langEn');
+  const btnStart = document.getElementById('btnStart');
+  const descEl = document.getElementById('descriptionText');
+  const showTextCheck = document.getElementById('showTextCheck');
+  const showTextSpan = document.getElementById('showTextSpan');
+
+  // ==============================
+  // Scene state
+  // ==============================
+  const SCENE = {
+    TITLE: 'title',
+    STRATEGY_SELECT: 'strategy_select',
+    ANIMATION: 'animation',
+    STATS: 'stats',
+  };
+  let currentScene = SCENE.TITLE;
+
+  // ==============================
+  // Apply language
+  // ==============================
+  function applyLang(lang) {
+    currentLang = lang;
+    const t = i18n[lang];
+    descEl.innerText = t.description.replace('\n', '\n');
+    btnStart.textContent = t.btnStart;
+
+    langRu.classList.toggle('active', lang === 'ru');
+    langEn.classList.toggle('active', lang === 'en');
+    showTextSpan.textContent = t.showText;
+
+    render();
+  }
+
+  // ==============================
+  // Show text checkbox
+  // ==============================
+  showTextCheck.addEventListener('change', () => {
+    showText = showTextCheck.checked;
+  });
+
+  // ==============================
+  // Constants
+  // ==============================
+  const W = 800, H = 540;
+  const CELL = 8;
+  const PRISON = {
+    x1: 60,  x2: 740,
+    y1: 40,  y2: 500,
+  };
+  const NUM_PRISONERS = 100;
+  const MAX_ATTEMPTS = 50; // N/2
+  const STRATEGY = { RANDOM: 'random', CYCLE: 'cycle' };
+
+  // Wall X positions for rooms
+  // Room 1 (prisoners): ~68..200  = 132px  (was 120)
+  // Room 2 (boxes):     ~200..530 = 330px
+  // Room 3 (yard):      ~530..732 = 202px  (was ~194 + wider)
+  const WALL_X = [
+    PRISON.x1 + CELL,            // 0: outer left inner face  (68)
+    PRISON.x1 + 200,             // 1: room1 → room2  (was 120 → 200 — wider prisoners room)
+    PRISON.x1 + 530,             // 2: room2 → room3
+    PRISON.x2 - CELL,            // 3: outer right inner face  (732)
+  ];
+
+  // ==============================
+  // Simulation state
+  // ==============================
+  let simulation = {
+    strategy: null,
+    boxes: [],         // boxNum -> slipNumber inside (1..100)
+    results: [],       // prisonerId -> { success, attempts, opened }
+    done: false,
+  };
+
+  // ==============================
+  // Simulation logic
+  // ==============================
+  function initBoxes() {
+    // Place numbers 1..100 into boxes randomly, then add 1 since boxes are 1-indexed
+    // Boxes are stored as 0-indexed array, box[i] = slip number (1-100)
+    const slips = Array.from({length: NUM_PRISONERS}, (_, i) => i + 1);
+    for (let i = slips.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slips[i], slips[j]] = [slips[j], slips[i]];
+    }
+    return slips;
+  }
+
+  function simulatePrisoner(prisonerId, boxes, strategy) {
+    // prisonerId is 0..99, their number is id + 1
+    const target = prisonerId + 1;
+    const opened = [];
+    let found = false;
+
+    if (strategy === STRATEGY.RANDOM) {
+      const remaining = Array.from({length: NUM_PRISONERS}, (_, i) => i);
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const idx = Math.floor(Math.random() * remaining.length);
+        const boxNum = remaining.splice(idx, 1)[0];
+        opened.push(boxNum);
+        if (boxes[boxNum] === target) { found = true; break; }
+      }
+    } else { // CYCLE
+      let nextBox = prisonerId; // start at own number - 1 (0-indexed)
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        opened.push(nextBox);
+        if (boxes[nextBox] === target) { found = true; break; }
+        nextBox = boxes[nextBox] - 1; // follow the slip (convert back to 0-indexed)
+      }
+    }
+
+    return { success: found, attempts: opened.length, opened };
+  }
+
+  function runSimulation(strategy) {
+    const boxes = initBoxes();
+    const results = [];
+
+    for (let p = 0; p < NUM_PRISONERS; p++) {
+      results.push(simulatePrisoner(p, boxes, strategy));
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = NUM_PRISONERS - successCount;
+    const successRate = (successCount / NUM_PRISONERS * 100).toFixed(1);
+
+    simulation = { boxes, results, strategy, successCount, failCount, successRate, done: true };
+    return simulation;
+  }
+
+  // ==============================
+  // Sprite rendering constants (positions for rooms)
+  // ==============================
+  const SPRITE = {
+    PRISONER_W: 24,  PRISONER_H: 40,   // prisoner sprite size (bigger for readability)
+    BOX_W: 30,       BOX_H: 22,         // box sprite size
+  };
+
+  // Pre-computed positions for prisoners and boxes
+  let prisonerPositions = [];
+  let boxPositions = [];
+
+  function computePositions() {
+    // ===== Prisoner spots: 4 columns × 25 (vertical layout) =====
+    const paX = PRISON.x1 + CELL * 2 + 4;
+    const paY = PRISON.y1 + CELL + 22;
+    const paW = WALL_X[1] - PRISON.x1 - CELL * 3 - 8;
+    const paH = PRISON.y2 - PRISON.y1 - CELL * 2 - 28;
+    const pCols = 4, pRows = 25;
+    const pGapX = 2, pGapY = 2;
+    const pCellW = (paW - (pCols - 1) * pGapX) / pCols;
+    const pCellH = (paH - (pRows - 1) * pGapY) / pRows;
+
+    prisonerPositions = [];
+    for (let c = 0; c < pCols; c++) {
+      for (let r = 0; r < pRows; r++) {
+        const id = c * pRows + r;
+        const cx = paX + c * (pCellW + pGapX) + pCellW / 2;
+        const cy = paY + r * (pCellH + pGapY) + pCellH / 2;
+        prisonerPositions[id] = { x: cx, y: cy };
+      }
+    }
+
+    // ===== Box spots (10×10) =====
+    const baX = WALL_X[1] + CELL + 6;
+    const baY = PRISON.y1 + CELL + 22;
+    const baW = WALL_X[2] - WALL_X[1] - CELL * 2 - 12;
+    const baH = PRISON.y2 - PRISON.y1 - CELL * 2 - 28;
+    const bCols = 10, bRows = 10;
+    const bGapX = 3, bGapY = 2;
+    const bCellW = (baW - (bCols - 1) * bGapX) / bCols;
+    const bCellH = (baH - (bRows - 1) * bGapY) / bRows;
+
+    boxPositions = [];
+    for (let r = 0; r < bRows; r++) {
+      for (let c = 0; c < bCols; c++) {
+        const id = r * bCols + c;
+        const cx = baX + c * (bCellW + bGapX) + bCellW / 2;
+        const cy = baY + r * (bCellH + bGapY) + bCellH / 2;
+        boxPositions[id] = { x: cx, y: cy };
+      }
+    }
+  }
+
+  // ==============================
+  // Sprite drawing functions
+  // ==============================
+
+  // Draw a prisoner at (cx, cy) — centered, facing forward
+  // walkFrame: 0=idle, 1=walk1, 2=walk2
+  function drawPrisoner(cx, cy, prisonerNum, walkFrame, highlightNum) {
+    const P = SPRITE;
+    const sx = Math.round(cx - P.PRISONER_W / 2);
+    const sy = Math.round(cy - P.PRISONER_H / 2 + 2);
+
+    // Colors
+    const SKIN = '#f0b080';
+    const STRIPE_LIGHT = '#f0e8d0';
+    const STRIPE_DARK = '#3a3a3a';
+    const EYE = '#222';
+    const PANTS = '#555';
+    const SHOE = '#333';
+    const HAIR = '#3a2a1a';
+
+    // Helper — fill a pixel-aligned rect
+    const r = (x, y, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(sx + x), Math.round(sy + y), w, h);
+    };
+
+    // === Legs (animated) ===
+    const legAnim = [0, 1, -1][walkFrame] || 0;
+    r(5, 27, 5, 7, PANTS);
+    r(14, 27, 5, 7, PANTS);
+    // Shoes
+    r(4, 33 + legAnim, 7, 3, SHOE);
+    r(13, 33 - legAnim, 7, 3, SHOE);
+
+    // === Arms (animated) ===
+    const armAnim = [0, -1.5, 1.5][walkFrame] || 0;
+    r(1, 12 + armAnim * 0.5, 4, 10, SKIN);
+    r(19, 12 - armAnim * 0.5, 4, 10, SKIN);
+
+    // === Body — striped robe ===
+    r(4, 10, 16, 19, STRIPE_DARK);
+    for (let i = 0; i < 9; i++) {
+      const stripeY = 10 + i * 2;
+      r(4, stripeY, 16, 1.5, i % 2 === 0 ? STRIPE_LIGHT : STRIPE_DARK);
+    }
+
+    // === Number badge on chest ===
+    r(7, 15, 10, 6, '#222');
+    ctx.font = '7px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = highlightNum ? '#4488ff' : '#66aaff';
+    ctx.fillText(prisonerNum, cx, sy + 18);
+
+    // === Head ===
+    r(4, 0, 16, 11, SKIN);
+    // Hair
+    r(4, 0, 16, 3, HAIR);
+    r(4, 0, 3, 5, HAIR);
+    r(17, 0, 3, 5, HAIR);
+    // Eyes
+    r(7, 4, 3, 3, '#fff');
+    r(14, 4, 3, 3, '#fff');
+    r(8, 5, 1.5, 2, EYE);
+    r(15, 5, 1.5, 2, EYE);
+    // Mouth
+    r(9, 8, 6, 2, '#c44');
+    // Striped hat / cap (prisoner cap)
+    r(6, -1, 12, 2, STRIPE_DARK);
+    r(6, -1, 12, 1, STRIPE_LIGHT);
+  }
+
+  // Draw a box at (cx, cy)
+  // opened=true + foundNum=number: opened, lid up, red number visible
+  // opened=true + foundNum=undefined: just opened, empty interior
+  // opened=false: closed box
+  function drawBox(cx, cy, boxNum, opened, foundNum) {
+    const bw = SPRITE.BOX_W;
+    const bh = SPRITE.BOX_H;
+    const bx = Math.round(cx - bw / 2);
+    const by = Math.round(cy - bh / 2);
+
+    if (opened) {
+      // Opened box — interior visible
+      // Outer frame
+      ctx.fillStyle = '#7a5a3a';
+      ctx.fillRect(bx, by + 5, bw, bh - 5);
+      // Interior dark
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(bx + 3, by + 8, bw - 6, bh - 11);
+      // Lid flipped up and to the right
+      ctx.fillStyle = '#8a6a4a';
+      ctx.fillRect(bx + 4, by - 10, bw - 4, 6);
+      ctx.fillStyle = '#6a4a2a';
+      ctx.fillRect(bx + 5, by - 9, bw - 6, 4);
+      // Lid hinge line
+      ctx.fillStyle = '#5a3a2a';
+      ctx.fillRect(bx + bw - 6, by - 2, 4, 4);
+      // Found number in RED inside
+      if (foundNum !== undefined) {
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ff4444';
+        ctx.fillText(foundNum, cx, by + bh / 2 + 2);
+      }
+    } else {
+      // Closed box
+      ctx.fillStyle = '#8a6a4a';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#6a4a2a';
+      ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2);
+      // Lid top
+      ctx.fillStyle = '#9a7a5a';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, 3);
+      ctx.fillStyle = '#7a5a3a';
+      ctx.fillRect(bx, by, bw, 2);
+      // Metal bands
+      ctx.fillStyle = '#5a3a2a';
+      ctx.fillRect(bx + 2, by + 4, 3, bh - 8);
+      ctx.fillRect(bx + bw - 5, by + 4, 3, bh - 8);
+      ctx.fillRect(bx + 5, by + Math.floor(bh / 2) - 1, bw - 10, 2);
+      // Number — gold
+      ctx.font = '7px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText(boxNum, cx, by + bh / 2);
+    }
+  }
+
+  // Draw success indicator (green exclamation)
+  function drawSuccess(cx, cy) {
+    ctx.save();
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#4caf50';
+    ctx.shadowColor = '#4caf50';
+    ctx.shadowBlur = 8;
+    ctx.fillText('!', cx, cy - 24);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // Draw fail indicator (red cross)
+  function drawFail(cx, cy) {
+    const x = cx, y = cy - 24;
+    ctx.strokeStyle = '#f44336';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5);
+    ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5);
+    ctx.stroke();
+  }
+
+  // ==============================
+  // Strategy selection UI
+  // ==============================
+  function showStrategySelect() {
+    currentScene = SCENE.STRATEGY_SELECT;
+    render();
+  }
+
+  function renderStrategySelect() {
+    const t = i18n[currentLang];
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(W / 2 - 260, H / 2 - 110, 520, 220);
+
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(t.strategyTitle, W / 2, H / 2 - 90);
+
+    // Strategy 1
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillStyle = '#4fc3f7';
+    ctx.fillText(t.strategy1Name, W / 2, H / 2 - 55);
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ccc';
+    wrapText(ctx, t.strategy1Desc, W / 2, H / 2 - 28, 450, 14);
+
+    // Strategy 2
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffb74d';
+    ctx.fillText(t.strategy2Name, W / 2, H / 2 + 10);
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ccc';
+    wrapText(ctx, t.strategy2Desc, W / 2, H / 2 + 37, 450, 14);
+
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#888';
+    ctx.fillText(t.pickStrategy, W / 2, H / 2 + 85);
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const lines = text.split('\n');
+    let cy = y;
+    for (const line of lines) {
+      ctx.fillText(line, x, cy);
+      cy += lineHeight;
+    }
+  }
+
+  // ==============================
+  // Stats screen
+  // ==============================
+  function renderStats() {
+    const t = i18n[currentLang];
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(W / 2 - 220, H / 2 - 100, 440, 200);
+
+    ctx.font = '16px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(t.statsTitle, W / 2, H / 2 - 78);
+
+    const label = simulation.strategy === STRATEGY.CYCLE ? t.strategy2Name : t.strategy1Name;
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText(label, W / 2, H / 2 - 50);
+
+    ctx.font = '12px "Press Start 2P", monospace';
+
+    const successColor = simulation.successCount > 30 ? '#4caf50' : '#f44336';
+    ctx.fillStyle = '#4caf50';
+    ctx.fillText(t.found + ': ' + simulation.successCount, W / 2, H / 2 - 16);
+    ctx.fillStyle = '#f44336';
+    ctx.fillText(t.notFound + ': ' + simulation.failCount, W / 2, H / 2 + 10);
+
+    ctx.fillStyle = successColor;
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillText(t.percent + ': ' + simulation.successRate + '%', W / 2, H / 2 + 45);
+
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#888';
+    ctx.fillText(t.clickStartAgain, W / 2, H / 2 + 80);
+  }
+
+  // ==============================
+  // Render screen
+  // ==============================
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // ---- Sky ----
+    ctx.fillStyle = '#f0d8a0';
+    ctx.fillRect(0, 0, W, 40);
+    for (let x = 0; x < W; x += CELL) {
+      for (let y = 0; y < 40; y += CELL) {
+        if ((Math.floor(x / CELL) + Math.floor(y / CELL)) % 2) {
+          ctx.fillStyle = '#e8c888';
+          ctx.fillRect(x, y, CELL, CELL);
+        }
+      }
+    }
+
+    // ---- Ground (grass all around) ----
+    ctx.fillStyle = '#4a8a2e';
+    ctx.fillRect(0, 40, W, H - 40);
+    for (let x = 0; x < W; x += CELL) {
+      for (let y = 40; y < H; y += CELL) {
+        if ((Math.floor(x / CELL) + Math.floor(y / CELL)) % 3 === 0) {
+          ctx.fillStyle = '#407a28';
+          ctx.fillRect(x, y, CELL, CELL);
+        }
+      }
+    }
+
+    // ---- Water top & bottom ----
+    ctx.fillStyle = '#2c5f8a';
+    ctx.fillRect(0, 0, W, 14);
+    ctx.fillStyle = '#3b8dc8';
+    for (let x = 0; x < W; x += 4) {
+      const waveY = Math.sin(x * 0.08) * 2;
+      ctx.fillRect(x, 5 + waveY, 4, 2);
+    }
+    ctx.fillStyle = '#2c5f8a';
+    ctx.fillRect(0, H - 14, W, 14);
+    ctx.fillStyle = '#3b8dc8';
+    for (let x = 0; x < W; x += 4) {
+      const waveY = Math.sin(x * 0.08 + 3) * 2;
+      ctx.fillRect(x, H - 8 + waveY, 4, 2);
+    }
+
+    // ---- Prison outer walls (brick) ----
+    const brickColors = ['#c04028', '#a83420'];
+    ctx.fillStyle = brickColors[0];
+    ctx.fillRect(PRISON.x1, PRISON.y1, PRISON.x2 - PRISON.x1, CELL);
+    ctx.fillRect(PRISON.x1, PRISON.y2 - CELL, PRISON.x2 - PRISON.x1, CELL);
+    ctx.fillRect(PRISON.x1, PRISON.y1, CELL, PRISON.y2 - PRISON.y1);
+    ctx.fillRect(PRISON.x2 - CELL, PRISON.y1, CELL, PRISON.y2 - PRISON.y1);
+    for (let x = PRISON.x1; x < PRISON.x2; x += CELL) {
+      for (let y = PRISON.y1; y < PRISON.y2; y += CELL) {
+        const onTop = y < PRISON.y1 + CELL;
+        const onBot = y >= PRISON.y2 - CELL;
+        const onLeft = x < PRISON.x1 + CELL;
+        const onRight = x >= PRISON.x2 - CELL;
+        if (onTop || onBot || onLeft || onRight) {
+          ctx.fillStyle = brickColors[(Math.floor(x / CELL) + Math.floor(y / CELL)) % 2];
+          ctx.fillRect(x, y, CELL, CELL);
+        }
+      }
+    }
+
+    // ---- Interior walls (grey) ----
+    ctx.fillStyle = '#888';
+    for (let wx of WALL_X) {
+      ctx.fillRect(wx, PRISON.y1 + CELL, CELL, PRISON.y2 - PRISON.y1 - CELL * 2);
+    }
+
+    // ---- Floors ----
+    fillAsphalt(PRISON.x1 + CELL * 2, PRISON.y1 + CELL, WALL_X[1] - PRISON.x1 - CELL * 3, PRISON.y2 - PRISON.y1 - CELL * 2);
+    fillAsphalt(WALL_X[1] + CELL, PRISON.y1 + CELL, WALL_X[2] - WALL_X[1] - CELL * 2, PRISON.y2 - PRISON.y1 - CELL * 2);
+    fillGrass(WALL_X[2] + CELL, PRISON.y1 + CELL, PRISON.x2 - WALL_X[2] - CELL * 3, PRISON.y2 - PRISON.y1 - CELL * 2);
+
+    // ---- Room labels ----
+    const t = i18n[currentLang];
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#aaa';
+    const room1cx = PRISON.x1 + CELL * 2 + (WALL_X[1] - PRISON.x1 - CELL * 3) / 2;
+    ctx.fillText(t.roomPrisoners, room1cx, PRISON.y1 + CELL + 4);
+    const room2cx = WALL_X[1] + CELL + (WALL_X[2] - WALL_X[1] - CELL * 2) / 2;
+    ctx.fillText(t.roomBoxes, room2cx, PRISON.y1 + CELL + 4);
+    const room3cx = WALL_X[2] + CELL + (PRISON.x2 - WALL_X[2] - CELL * 3) / 2;
+    ctx.fillText(t.roomYard, room3cx, PRISON.y1 + CELL + 4);
+
+    // ---- Sprites: prisoners in room 1 ----
+    if (prisonerPositions.length > 0 && currentScene !== SCENE.TITLE) {
+      for (let p = 0; p < NUM_PRISONERS; p++) {
+        const pos = prisonerPositions[p];
+        const num = p + 1;
+        const result = simulation.results && simulation.results[p];
+        const highlight = result ? result.success : false;
+        const walkFrame = 0;
+        drawPrisoner(pos.x, pos.y, num, walkFrame, highlight && currentScene === SCENE.STATS);
+      }
+    }
+
+    // ---- Sprites: boxes in room 2 ----
+    if (boxPositions.length > 0 && currentScene !== SCENE.TITLE) {
+      for (let b = 0; b < NUM_PRISONERS; b++) {
+        const pos = boxPositions[b];
+        drawBox(pos.x, pos.y, b + 1, false);
+      }
+    }
+
+    // ---- Sprites: prisoners in yard (room 3) on stats ----
+    if (currentScene === SCENE.STATS && simulation.results) {
+      const succPrisoners = [];
+      const failPrisoners = [];
+      for (let p = 0; p < NUM_PRISONERS; p++) {
+        if (simulation.results[p].success) succPrisoners.push(p);
+        else failPrisoners.push(p);
+      }
+      const yx = WALL_X[2] + CELL + 6;
+      const yy = PRISON.y1 + CELL + 22;
+      const yw = PRISON.x2 - WALL_X[2] - CELL * 3 - 8;
+      const yh = PRISON.y2 - PRISON.y1 - CELL * 2 - 28;
+      const yCols = 4, yRows = 25;
+      const yGapX = 1, yGapY = 1;
+      const yCellW = (yw - (yCols - 1) * yGapX) / yCols;
+      const yCellH = (yh - (yRows - 1) * yGapY) / yRows;
+
+      for (let i = 0; i < Math.min(succPrisoners.length, 100); i++) {
+        const c = Math.floor(i / yRows);
+        const r = i % yRows;
+        if (c >= yCols) break;
+        const cx = yx + c * (yCellW + yGapX) + yCellW / 2;
+        const cy = yy + r * (yCellH + yGapY) + yCellH / 2;
+        drawPrisoner(cx, cy, succPrisoners[i] + 1, 0, true);
+        drawSuccess(cx, cy);
+      }
+      for (let i = 0; i < Math.min(failPrisoners.length, 100); i++) {
+        const idx = succPrisoners.length + i;
+        const c = Math.floor(idx / yRows);
+        const r = idx % yRows;
+        if (c >= yCols) break;
+        const cx = yx + c * (yCellW + yGapX) + yCellW / 2;
+        const cy = yy + r * (yCellH + yGapY) + yCellH / 2;
+        drawPrisoner(cx, cy, failPrisoners[i] + 1, 0, false);
+        drawFail(cx, cy);
+      }
+    }
+
+    // ---- Scene-specific content ----
+    if (currentScene === SCENE.TITLE) {
+      renderTitle();
+    } else if (currentScene === SCENE.STRATEGY_SELECT) {
+      renderStrategySelect();
+    } else if (currentScene === SCENE.STATS) {
+      renderStats();
+    }
+  }
+
+  function fillAsphalt(x, y, w, h) {
+    ctx.fillStyle = '#7a7a7a';
+    ctx.fillRect(x, y, w, h);
+    for (let px = x; px < x + w; px += 4) {
+      for (let py = y; py < y + h; py += 4) {
+        if ((Math.floor(px / 4) + Math.floor(py / 4)) % 7 === 0) {
+          ctx.fillStyle = '#555';
+          ctx.fillRect(px, py, 2, 2);
+        }
+      }
+    }
+  }
+
+  function fillGrass(x, y, w, h) {
+    ctx.fillStyle = '#4a8a2e';
+    ctx.fillRect(x, y, w, h);
+    for (let px = x; px < x + w; px += 4) {
+      for (let py = y; py < y + h; py += 4) {
+        if ((Math.floor(px / 4) + Math.floor(py / 4)) % 3 === 0) {
+          ctx.fillStyle = '#3d7a25';
+          ctx.fillRect(px, py, 2, 2);
+        }
+      }
+    }
+  }
+
+  function renderTitle() {
+    ctx.font = '24px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(W / 2 - 200, H / 2 - 80, 400, 120);
+
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('PRISONERS', W / 2, H / 2 - 50);
+
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ccc';
+    ctx.fillText("Prisoner's Dilemma", W / 2, H / 2 - 16);
+
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillStyle = '#888';
+    ctx.fillText(i18n[currentLang].subtitle, W / 2, H / 2 + 20);
+  }
+
+  // ==============================
+  // Animation engine
+  // ==============================
+  let animState = null;
+  let animFrameId = null;
+  let showText = false;
+
+  const ANIM_PHASE = {
+    EXIT_ROOM: 'exit_room',       // walking from holding room to door
+    WALK_TO_BOX: 'walk_to_box',   // walking toward a specific box
+    OPEN_BOX: 'open_box',         // opening animation
+    READ_BOX: 'read_box',         // showing the number
+    CLOSE_BOX: 'close_box',       // closing animation
+    RESULT: 'result',             // show success/fail indicator
+    WALK_BACK: 'walk_back',       // walking back to holding area
+  };
+
+  const SPEED = 3.5; // pixels per frame
+
+  function startAnimation(strategy) {
+    // Pre-run simulation for the full sequence
+    const boxes = initBoxes();
+    const sequence = [];
+    let prisonerOpened = []; // for each prisoner, track which boxes they opened
+    let prisonerResults = [];
+
+    for (let p = 0; p < NUM_PRISONERS; p++) {
+      const target = p + 1;
+      const opened = [];
+      let found = false;
+
+      if (strategy === STRATEGY.RANDOM) {
+        const remaining = Array.from({length: NUM_PRISONERS}, (_, i) => i);
+        for (let a = 0; a < MAX_ATTEMPTS; a++) {
+          const idx = Math.floor(Math.random() * remaining.length);
+          const boxNum = remaining.splice(idx, 1)[0];
+          opened.push(boxNum);
+          if (boxes[boxNum] === target) { found = true; break; }
+        }
+      } else {
+        let nextBox = p;
+        for (let a = 0; a < MAX_ATTEMPTS; a++) {
+          opened.push(nextBox);
+          if (boxes[nextBox] === target) { found = true; break; }
+          nextBox = boxes[nextBox] - 1;
+        }
+      }
+
+      prisonerResults.push({ success: found, attempts: opened.length, opened });
+      const startPos = prisonerPositions[p];
+
+      // Build animation steps for this prisoner
+      // First step starts from the holding room, subsequent steps from previous box
+      let prevPos = { x: WALL_X[1] - 30, y: startPos.y }; // start from door threshold
+      for (let a = 0; a < opened.length; a++) {
+        const boxId = opened[a];
+        const boxPos = boxPositions[boxId];
+        sequence.push({ prisoner: p, box: boxId, fromPos: { x: prevPos.x, y: prevPos.y }, toPos: boxPos });
+        prevPos = { x: boxPos.x, y: boxPos.y };
+      }
+    }
+
+    // Save full results
+    const successCount = prisonerResults.filter(r => r.success).length;
+    const failCount = NUM_PRISONERS - successCount;
+    const successRate = (successCount / NUM_PRISONERS * 100).toFixed(1);
+    simulation = { boxes, results: prisonerResults, strategy, successCount, failCount, successRate, done: true };
+
+    animState = {
+      queue: [...sequence],
+      phase: ANIM_PHASE.EXIT_ROOM,
+      currentPrisoner: 0,
+      currentBox: null,
+      x: 0, y: 0,
+      targetX: 0, targetY: 0,
+      walkFrame: 0,
+      frameCounter: 0,
+      showText: showText,
+      allOpenedBoxes: new Set(),     // ALL boxes that have been opened so far
+      animating: true,
+      gonePrisoners: new Set(),
+      prisonerDone: new Set(),
+      prisonerSuccess: new Map(),
+    };
+
+    // start first step
+    currentScene = SCENE.ANIMATION;
+    btnStart.disabled = true;
+    descEl.innerText = i18n[currentLang].animStart;
+    advanceStep();
+    gameLoop();
+  }
+
+  function advanceStep() {
+    if (!animState || animState.queue.length === 0) {
+      endAnimation();
+      return;
+    }
+
+    const step = animState.queue.shift();
+    const pid = step.prisoner;
+    const fromPos = step.fromPos;
+    const toPos = step.toPos;
+
+    // New prisoner started — reset all opened boxes
+    if (pid !== animState.currentPrisoner) {
+      animState.allOpenedBoxes.clear();
+    }
+
+    if (!animState.gonePrisoners.has(pid)) {
+      animState.gonePrisoners.add(pid);
+    }
+
+    animState.currentPrisoner = pid;
+    animState.currentBox = step.box;
+    animState.phase = ANIM_PHASE.WALK_TO_BOX;
+
+    animState.x = fromPos.x;
+    animState.y = fromPos.y;
+    animState.targetX = toPos.x;
+    animState.targetY = toPos.y;
+
+    // Log to DOM
+    const t = i18n[currentLang];
+    if (animState.showText) {
+      descEl.innerText = t.prisonerLog.replace('{n}', pid + 1).replace('{b}', step.box + 1);
+    }
+  }
+
+  function gameLoop() {
+    if (currentScene !== SCENE.ANIMATION || !animState) {
+      animFrameId = null;
+      return;
+    }
+
+    animState.frameCounter++;
+
+    // Animate walk frame
+    if (animState.phase === ANIM_PHASE.WALK_TO_BOX || animState.phase === ANIM_PHASE.EXIT_ROOM) {
+      animState.walkFrame = Math.floor(animState.frameCounter / 6) % 3;
+    }
+
+    updateAnimation();
+    renderAnimation();
+    animFrameId = requestAnimationFrame(gameLoop);
+  }
+
+  function updateAnimation() {
+    if (!animState) return;
+
+    const phase = animState.phase;
+
+    if (phase === ANIM_PHASE.WALK_TO_BOX || phase === ANIM_PHASE.EXIT_ROOM) {
+      // Move toward target
+      const dx = animState.targetX - animState.x;
+      const dy = animState.targetY - animState.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < SPEED) {
+        animState.x = animState.targetX;
+        animState.y = animState.targetY;
+
+        if (phase === ANIM_PHASE.WALK_TO_BOX) {
+          // Arrived at box → open it
+          animState.phase = ANIM_PHASE.OPEN_BOX;
+          animState.walkFrame = 0;
+          animState.frameCounter = 0;
+          animState.allOpenedBoxes.add(animState.currentBox);
+        }
+      } else {
+        const moveX = (dx / dist) * SPEED;
+        const moveY = (dy / dist) * SPEED;
+        animState.x += moveX;
+        animState.y += moveY;
+      }
+    } else if (phase === ANIM_PHASE.OPEN_BOX) {
+      animState.frameCounter++;
+      if (animState.frameCounter > 12) {
+        // Box open → read
+        const boxId = animState.currentBox;
+        const foundNum = simulation.boxes[boxId];
+        if (animState.showText) {
+          const t = i18n[currentLang];
+          descEl.innerText = t.openLog.replace('{b}', boxId + 1).replace('{n}', foundNum);
+        }
+        animState.phase = ANIM_PHASE.READ_BOX;
+        animState.frameCounter = 0;
+      }
+    } else if (phase === ANIM_PHASE.READ_BOX) {
+      animState.frameCounter++;
+      if (animState.frameCounter > 30) {
+        // Done reading → close
+        animState.phase = ANIM_PHASE.CLOSE_BOX;
+        animState.frameCounter = 0;
+      }
+    } else if (phase === ANIM_PHASE.CLOSE_BOX) {
+      animState.frameCounter++;
+      if (animState.frameCounter > 8) {
+        const pid = animState.currentPrisoner;
+        const boxId = animState.currentBox;
+        const target = pid + 1;
+        const foundIt = simulation.boxes[boxId] === target;
+
+        if (foundIt) {
+          // SUCCESS — mark done
+          animState.phase = ANIM_PHASE.RESULT;
+          animState.frameCounter = 0;
+          if (animState.showText) {
+            const t = i18n[currentLang];
+            descEl.innerText = t.foundLog.replace('{n}', pid + 1);
+          }
+        } else {
+          // Check if this prisoner has more boxes to check in queue
+          const remainingForPrisoner = animState.queue.filter(s => s.prisoner === pid);
+          if (remainingForPrisoner.length > 0) {
+            // More boxes for same prisoner — advance to next box
+            advanceStep();
+          } else {
+            // All attempts exhausted — FAIL
+            animState.phase = ANIM_PHASE.RESULT;
+            animState.frameCounter = 0;
+            if (animState.showText) {
+              const t = i18n[currentLang];
+              descEl.innerText = t.failLog.replace('{n}', pid + 1);
+            }
+          }
+        }
+      }
+    } else if (phase === ANIM_PHASE.RESULT) {
+      animState.frameCounter++;
+      if (animState.frameCounter > 40) {
+        // Done showing result → next prisoner
+        const pid = animState.currentPrisoner;
+        animState.prisonerDone.add(pid);
+        const target = pid + 1;
+        const boxId = animState.currentBox;
+        animState.prisonerSuccess.set(pid, simulation.boxes[boxId] === target);
+        advanceStep();
+      }
+    }
+  }
+
+  function renderAnimation() {
+    if (!animState) return;
+    render(); // draw background, prisoners, boxes
+    drawAnimationOverlay();
+  }
+
+  function drawAnimationOverlay() {
+    if (!animState) return;
+
+    const as = animState;
+    const pid = as.currentPrisoner;
+
+    // ---- Draw ALL opened boxes as OPENED ----
+    for (const boxId of as.allOpenedBoxes) {
+      const boxPos = boxPositions[boxId];
+      const foundNum = simulation.boxes[boxId];
+      drawBox(boxPos.x, boxPos.y, boxId + 1, true, foundNum);
+    }
+
+    // ---- Draw active prisoner walking ----
+    if (as.phase === ANIM_PHASE.WALK_TO_BOX || as.phase === ANIM_PHASE.EXIT_ROOM) {
+      drawPrisoner(as.x, as.y, pid + 1, as.walkFrame, false);
+    }
+
+    // ---- Draw active prisoner at box during open/read/result ----
+    if (as.phase === ANIM_PHASE.OPEN_BOX || as.phase === ANIM_PHASE.READ_BOX) {
+      drawPrisoner(as.x, as.y, pid + 1, 0, false);
+    }
+
+    if (as.phase === ANIM_PHASE.RESULT) {
+      drawPrisoner(as.x, as.y, pid + 1, 0, true);
+      const boxId = as.currentBox;
+      const target = pid + 1;
+      const success = simulation.boxes[boxId] === target;
+      if (success) {
+        drawSuccess(as.x, as.y);
+      } else {
+        drawFail(as.x, as.y);
+      }
+    }
+
+    // ---- Draw completed prisoners in yard ----
+    if (simulation.results) {
+      const completedPrisoners = [];
+      for (let p = 0; p < NUM_PRISONERS; p++) {
+        if (animState.prisonerDone.has(p)) {
+          completedPrisoners.push(p);
+        }
+      }
+      if (completedPrisoners.length > 0) {
+        const yx = WALL_X[2] + CELL + 6;
+        const yy = PRISON.y1 + CELL + 22;
+        const yw = PRISON.x2 - WALL_X[2] - CELL * 3 - 8;
+        const yh = PRISON.y2 - PRISON.y1 - CELL * 2 - 28;
+        const yCols = 4, yRows = 25;
+        const yGapX = 1, yGapY = 1;
+        const yCellW = (yw - (yCols - 1) * yGapX) / yCols;
+        const yCellH = (yh - (yRows - 1) * yGapY) / yRows;
+
+        for (let i = 0; i < completedPrisoners.length; i++) {
+          const cp = completedPrisoners[i];
+          const c = Math.floor(i / yRows);
+          const r = i % yRows;
+          if (c >= yCols) break;
+          const cx = yx + c * (yCellW + yGapX) + yCellW / 2;
+          const cy = yy + r * (yCellH + yGapY) + yCellH / 2;
+          const isSuccess = animState.prisonerSuccess.get(cp);
+          drawPrisoner(cx, cy, cp + 1, 0, isSuccess);
+          if (isSuccess) drawSuccess(cx, cy);
+          else drawFail(cx, cy);
+        }
+      }
+    }
+
+    // ---- Text log bottom-left ----
+    if (as.showText && (as.phase !== ANIM_PHASE.WALK_TO_BOX)) {
+      ctx.font = '7px "Press Start 2P", monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(PRISON.x1 + CELL, PRISON.y2 - 30, WALL_X[1] - PRISON.x1 - CELL * 2, 24);
+      ctx.fillStyle = '#ffd700';
+      const logText = descEl.innerText.split('\n')[0];
+      ctx.fillText(logText.slice(0, 30), PRISON.x1 + CELL + 4, PRISON.y2 - 10);
+    }
+
+    // Progress
+    const doneCount = animState.prisonerDone.size;
+    ctx.font = '6px "Press Start 2P", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(PRISON.x1 + 4, PRISON.y1 + 4, 130, 14);
+    ctx.fillStyle = '#ccc';
+    ctx.fillText(`Prisoner ${doneCount + 1}/${NUM_PRISONERS}`, PRISON.x1 + 8, PRISON.y1 + 7);
+  }
+
+  function endAnimation() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    currentScene = SCENE.STATS;
+    btnStart.disabled = false;
+    btnStart.textContent = i18n[currentLang].btnStart;
+    descEl.innerText = i18n[currentLang].description.replace('\n', '\n');
+    render();
+  }
+
+  // ==============================
+  // Keyboard shortcuts for strategy
+  // ==============================
+  document.addEventListener('keydown', (e) => {
+    if (currentScene !== SCENE.STRATEGY_SELECT) return;
+    if (e.key === '1') { selectStrategy(STRATEGY.RANDOM, false); }
+    else if (e.key === '2') { selectStrategy(STRATEGY.CYCLE, false); }
+  });
+
+  function selectStrategy(strategy) {
+    startAnimation(strategy);
+  }
+
+  // ==============================
+  // Event handlers
+  // ==============================
+  langRu.addEventListener('click', () => applyLang('ru'));
+  langEn.addEventListener('click', () => applyLang('en'));
+
+  btnStart.addEventListener('click', () => {
+    if (currentScene === SCENE.ANIMATION) return;
+    currentScene = SCENE.STRATEGY_SELECT;
+    btnStart.disabled = true;
+    render();
+  });
+
+  // Canvas click for strategy selection (click left/right half)
+  canvas.addEventListener('click', (e) => {
+    if (currentScene !== SCENE.STRATEGY_SELECT) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width * W;
+    if (x < W / 2) {
+      selectStrategy(STRATEGY.RANDOM);
+    } else {
+      selectStrategy(STRATEGY.CYCLE);
+    }
+  });
+
+  // ==============================
+  // Init
+  // ==============================
+  computePositions();
+  applyLang('en');
+</script>
+</body>
+</html>
